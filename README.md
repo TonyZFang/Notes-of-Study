@@ -1,4 +1,4 @@
-# Notes of Study
+# 远程链接SQL Server设置
 ++场景说明
 　　现在有一台A电脑和一台B电脑，A电脑通过路由器连接到了Internet， 并且A电脑上有需要被访问的Sql Server数据库。目的：让B电脑通过Internet远程访问A电脑上的数据库。
 
