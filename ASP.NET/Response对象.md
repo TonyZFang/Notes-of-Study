@@ -28,7 +28,7 @@ Flush	立即发送已缓存的 HTML 输出。
 Redirect	把用户重定向到另一个 URL。
 Write	向输出写指定的字符串。
 
-例子
+常见应用例子
 1.在页面中输出数据：
 Response.Write("输出内容")；
 
@@ -36,6 +36,7 @@ Response.Write("输出内容")；
 Response.Redirect("~/test.aspx?parameter1=value1&parameter2=value2")
 
 3.向视图中输出图片的方法：
+Using System.IO;//需要引用这个命名空间
 private void ShowImage(string name)
 {
     //打开图片文件，并保存在文件流中，文件位于项目"根目录\App_LocalResources"文件夹为例
