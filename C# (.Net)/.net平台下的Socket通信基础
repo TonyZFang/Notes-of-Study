@@ -1,0 +1,268 @@
+.net平台下C#socket通信
+
+在开始介绍socket前先补充补充基础知识，在此基础上理解网络通信才会顺理成章，当然有基础的可以跳过去了。都是废话，进入正题。
+
+TCP/IP：Transmission Control Protocol/Internet Protocol,传输控制协议/因特网互联协议，又名网络通讯协议。简单来说：TCP控制传输数据，负责发现传输的问题，一旦有问题就发出信号，要求重新传输，直到所有数据安全正确地传输到目的地，而IP是负责给因特网中的每一台电脑定义一个地址，以便传输。从协议分层模型方面来讲：TCP/IP由：网络接口层（链路层）、网络层、传输层、应用层。它和OSI的七层结构以及对于协议族不同.
+
+现阶段socket通信使用TCP、UDP协议，相对应UDP来说，TCP则是比较安全稳定的协议了。本文只涉及到TCP协议来说socket通信。首先讲述TCP/IP的三次握手，在握手基础上延伸socket通信的基本过程。
+
+下面介绍对于应届生毕业面试来说是非常熟悉的，同时也是最臭名昭著的三次握手：
+
+1 客户端发送syn报文到服务器端，并置发送序号为x。
+
+2 服务器端接收到客户端发送的请求报文，然后向客户端发送syn报文，并且发送确认序号x+1，并置发送序号为y。
+
+3 客户端受到服务器发送确认报文后，发送确认信号y+1，并置发送序号为z。至此客户端和服务器端建立连接。
+
+在此基础上，socket连接过程：
+
+服务器监听：服务器端socket并不定位具体的客户端socket，而是处于等待监听状态，实时监控网络状态。
+
+客户端请求：客户端clientSocket发送连接请求，目标是服务器的serverSocket。为此，clientSocket必须知道serverSocket的地址和端口号，进行扫描发出连接请求。
+
+连接确认：当服务器socket监听到或者是受到客户端socket的连接请求时，服务器就响应客户端的请求，建议一个新的socket，把服务器socket发送给客户端，一旦客户端确认连接，则连接建立。
+
+注：在连接确认阶段：服务器socket即使在和一个客户端socket建立连接后，还在处于监听状态，仍然可以接收到其他客户端的连接请求，这也是一对多产生的原因。
+
+socket连接原理知道了，此处编写最基本最简单的socket通信：
+
+服务器端：
+
+int port = 6000;
+            string host = "127.0.0.1";
+
+            IPAddress ip = IPAddress.Parse(host);
+            IPEndPoint ipe = new IPEndPoint(ip, port);
+
+            Socket sSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            sSocket.Bind(ipe);
+            sSocket.Listen(0);
+            Console.WriteLine("监听已经打开，请等待");
+
+            //receive message
+            Socket serverSocket = sSocket.Accept();
+            Console.WriteLine("连接已经建立");
+            string recStr = "";
+            byte[] recByte = new byte[4096];
+            int bytes = serverSocket.Receive(recByte, recByte.Length, 0);
+            recStr += Encoding.ASCII.GetString(recByte, 0, bytes);
+
+            //send message
+            Console.WriteLine("服务器端获得信息:{0}", recStr);
+            string sendStr = "send to client :hello";
+            byte[] sendByte = Encoding.ASCII.GetBytes(sendStr);
+            serverSocket.Send(sendByte, sendByte.Length, 0);
+            serverSocket.Close();
+            sSocket.Close();
+
+客户端：
+
+            int port = 6000;
+            string host = "127.0.0.1";//服务器端ip地址
+
+            IPAddress ip = IPAddress.Parse(host);
+            IPEndPoint ipe = new IPEndPoint(ip, port);
+
+            Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            clientSocket.Connect(ipe);
+
+            //send message
+            string sendStr = "send to server : hello,ni hao";
+            byte[] sendBytes = Encoding.ASCII.GetBytes(sendStr);
+            clientSocket.Send(sendBytes);
+
+            //receive message
+            string recStr = "";
+            byte[] recBytes = new byte[4096];
+            int bytes = clientSocket.Receive(recBytes, recBytes.Length, 0);
+            recStr += Encoding.ASCII.GetString(recBytes, 0, bytes);
+            Console.WriteLine(recStr);
+
+            clientSocket.Close();
+
+上述服务器端和客户端建立通信，在互相发送一次信息后通信便结束，而在大家进行的项目中，这样的通信肯定满足不了需求。于是接着介绍异步通信，简单来说就是服务器端和客户端可以进行多次互发信息的通信而不用担心通道会关闭。在介绍异步通信时，客户端和服务器端的连接和上面介绍的同步通信建立连接的方式是一样的，这里只写出服务器端和客户端发送信息的方法和接收信息的方法。（服务器端和客户端的发送、接收的方法是一样的）
+
+首先写出异步连接的方法吧：
+
+        public void Connect(IPAddress ip, int port)
+        {
+            this.clientSocket.BeginConnect(ip, port, new AsyncCallback(ConnectCallback), this.clientSocket);
+        }
+
+        private void ConnectCallback(IAsyncResult ar)
+        {
+            try
+            {
+                Socket handler = (Socket)ar.AsyncState;
+                handler.EndConnect(ar);
+            }
+            catch (SocketException ex)
+            { }
+        }
+
+发送信息方法：
+
+        public void Send(string data)
+        {
+            Send(System.Text.Encoding.UTF8.GetBytes(data));
+        }
+
+        private void Send(byte[] byteData)
+        {
+            try
+            {
+                int length = byteData.Length;
+                byte[] head = BitConverter.GetBytes(length);
+                byte[] data = new byte[head.Length + byteData.Length];
+                Array.Copy(head, data, head.Length);
+                Array.Copy(byteData, 0, data, head.Length, byteData.Length);
+                this.clientSocket.BeginSend(data, 0, data.Length, 0, new AsyncCallback(SendCallback), this.clientSocket);
+            }
+            catch (SocketException ex)
+            { }
+        }
+
+        private void SendCallback(IAsyncResult ar)
+        {
+            try
+            {
+                Socket handler = (Socket)ar.AsyncState;
+                handler.EndSend(ar);
+            }
+            catch (SocketException ex)
+            { }
+        }
+
+接收信息的方法：
+        public void ReceiveData()
+        {
+            clientSocket.BeginReceive(MsgBuffer, 0, MsgBuffer.Length, 0, new AsyncCallback(ReceiveCallback), null);
+        }
+
+        private void ReceiveCallback(IAsyncResult ar)
+        {
+            try
+            {
+                int REnd = clientSocket.EndReceive(ar);
+                if (REnd > 0)
+                {
+                    byte[] data = new byte[REnd];
+                    Array.Copy(MsgBuffer, 0, data, 0, REnd);
+
+                    //在此次可以对data进行按需处理
+
+                    clientSocket.BeginReceive(MsgBuffer, 0, MsgBuffer.Length, 0, new AsyncCallback(ReceiveCallback), null);
+                }
+                else
+                {
+                    dispose();
+                }
+            }
+            catch (SocketException ex)
+            { }
+        }
+
+        private void dispose()
+        {
+            try
+            {
+                this.clientSocket.Shutdown(SocketShutdown.Both);
+                this.clientSocket.Close();
+            }
+            catch (Exception ex)
+            { }
+        }
+
+异步问题解决了，再写一个自己在使用过程中经常出现的一个问题。接收的数据包处理问题：在网络通信中，使用异步进行通信，那么客户端在接收服务器发送来的数据包的处理上会有一些麻烦，比如粘包、断包，这是一些小问题，此处简单写写自己处理此问题的一个方法。
+粘包处理：
+
+        public Hashtable DataTable = new Hashtable();//因为要接收到多个服务器（ip）发送的数据，此处按照ip地址分开存储发送数据
+
+        public void DataArrial(byte[] Data , string ip)
+        {
+            try
+            {
+                if (Data.Length < 12)//按照需求进行判断
+                {
+                    lock (DataTable)
+                    {
+                        if (DataTable.Contains(ip))
+                        {
+                            DataTable[ip] = Data;
+                            return;
+                        }
+                    }
+                }
+
+                if (Data[0] != 0x1F || Data[1] != 0xF1)//标志位（按照需求编写）
+                {
+                    if (DataTable.Contains(ip))
+                    {
+                        if (DataTable != null)
+                        {
+                            byte[] oldData = (byte[])DataTable[ip];//取出粘包数据
+                            if (oldData[0] != 0x1F || oldData[1] != 0xF1)
+                            {
+                                return;
+                            }
+                            byte[] newData = new byte[Data.Length + oldData.Length];
+                            Array.Copy(oldData, 0, newData, 0, oldData.Length);
+                            Array.Copy(Data, 0, newData, oldData.Length, Data.Length);//组成新数据数组，先到的数据排在前面，后到的数据放在后面
+
+                            lock (DataTable)
+                            {
+                                DataTable[ip] = null;
+                            }
+                            DataArrial(newData, ip);
+                            return;
+                        }
+                    }
+                    return;
+                }
+
+                int revDataLength = Data[2];//打算发送数据的长度
+                int revCount = Data.Length;//接收的数据长度
+                if (revCount > revDataLength)//如果接收的数据长度大于发送的数据长度，说明存在多帧数据，继续处理
+                {
+                    byte[] otherData = new byte[revCount - revDataLength];
+                    Data.CopyTo(otherData, revCount - 1);
+                    Array.Copy(Data, revDataLength, otherData, 0, otherData.Length);
+                    Data = (byte[])Redim(Data, revDataLength);
+                    DataArrial(otherData, ip);
+                }
+                if (revCount < revDataLength) //接收到的数据小于要发送的长度
+                {
+                    if (DataTable.Contains(ip))
+                    {
+                        DataTable[ip] = Data;//更新当前粘包数据
+                        return;
+                    }
+                }
+
+                //此处可以按需进行数据处理
+            }
+            catch (Exception ex)
+            { }
+        }
+
+        private Array Redim(Array origArray, Int32 desizedSize)
+        {
+            //确认每个元素的类型
+            Type t = origArray.GetType().GetElementType();
+            //创建一个含有期望元素个数的新数组
+            //新数组的类型必须匹配数组的类型
+            Array newArray = Array.CreateInstance(t, desizedSize);
+            //将原数组中的元素拷贝到新数组中。
+            Array.Copy(origArray, 0, newArray, 0, Math.Min(origArray.Length, desizedSize));
+            //返回新数组
+            return newArray;
+        }
+
+socket最基本的内容终于写完了，结合上面的信息进行简单的应用应该是没有问题，可是如果牵涉到比较服务的通信问题，其解决的方法就需要委托、多线程、接口方面的知识了，这方面最近正在学习，最近有一个感悟：委托是.net下C#中最基本最重要的部分了吧，应该必须学会。
+
+吐槽：一个委托不可怕，可怕的是多个委托，并且委托中套用委托才是最可怕的。
+
+哎，慢慢学习吧。也许下文在一个星期后，或者一个月后会写出来吧，也许更久吧
+
+
+原文链接:http://www.cnblogs.com/ysyn/p/3399351.html
