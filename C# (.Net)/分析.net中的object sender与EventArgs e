@@ -1,0 +1,271 @@
+分析.net中的object sender与EventArgs e
+
+有一个叫做EventHandler 的家伙，他会告诉你（主程序），有一些事情发生了：这个事情是谁导致的呢？是某个object类型对象导致的，它用Source或Sender来表示。这个事情是什么事呢？e的内容就是事情的内容了。
+
+至于Source和Sender，没有区别，你想用哪个就用哪个，其实都是一样的。
+
+所以，我们在程序中的事件处理函数就是依赖于这个东西实现的：比方说你点了一个按钮，程序怎么知道应该用哪个函数来处理这个动作呢？那么EventHandler 这个家伙会告诉程序："button1(sender)被点击(e)了，请调用对应的处理函数"。当然这个函数是谁，这个函数要做什么，是由你自己写的。
+
+再深入一层，这个过程实际上就是：你的动作被windows捕获，windows把这个动作作为系统消息发送给程序（可以看message结构），程序从自己的消息队列中不断的取出消息，并在消息循环中寻找对应的处理方式，这时message结构中的类似于sender和e的东东就起到了引导程序使用正确的处理函数的作用。
+
+归根究底，这个sender和e及其一整套的处理方式，只不过是windows消息机制的另外一种表现罢了 ^_^
+
+如果是按钮button的话，那sender就是那个button,
+
+e是事件参数，在某些事件里，e用处不大，比如在MouseEventArgs的Mouse事件中，可以看到e包括mouse的坐标值等，以供你的程序使用。
+
+具体的说来，对于系统提供的类的事件，Sender参数只是简单地传递了指向引发事件的那个类的实例的一个引用，而e是EventArgs类型的参数，它包含了事件所携带的信息。
+
+至于第二个问题，我不是很明白“我看到在很多事件代码中那些代码都是照写(object sender, System.EventArgs e)，根本就不用改变sender和e，参数不是应该随实际情况变化的吗？”这句话的意思，比如说一个按钮控件，当它的单击事件被引发时，系统会自动把这个按钮对象作一个类型强制转换然后赋值给Sender，然后传递e。之所以都是这个形式是因为大多数情况下这些简单的事件不需要传递特殊的信息，您可以看一下KeyPress事件，这个事件就包含一个KeyPressEventArgs，包含了按键的信息。
+
+另外需要明确的一个概念就是类似这样形式的方法：
+
+private void Button_Click(object sender, EventArgs e)
+
+这样的方法称为事件处理方法，它类似于C语言中的事件处理函数，它是在运行时由系统调用的，因此它的参数不会变化，就好像我们写方法时的方法名一样。
+
+一、了解C#中的预定义事件处理机制
+
+在写代码前我们先来熟悉.net框架中和事件有关的类和委托，了解C#中预定义事件的处理。
+
+EventArgs是包含事件数据的类的基类,用于传递事件的细节。
+
+EventHandler是一个委托声明如下
+
+public delegate void EventHandler( object sender , EventArgs e )
+
+注意这里的参数,前者是一个对象（其实这里传递的是对象的引用，如果是button1的click事件则sender就是button1），后面是包含事件数据的类的基类。
+
+下面我们研究一下Button类看看其中的事件声明（使用WinCV工具查看），以Click事件为例。
+
+public event EventHandler Click;
+
+这里定义了一个EventHandler类型的事件Click
+
+前面的内容都是C#在类库中已经为我们定义好了的。下面我们来看编程时产生的代码。
+
+private void button1_Click(object sender, System.EventArgs e)   {     ...  }
+
+这是我们和button1_click事件所对应的方法。注意方法的参数符合委托中的签名（既参数列表）。那我们怎么把这个方法和事件联系起来呢，请看下面的代码。
+
+this.button1.Click += new System.EventHandler(this.button1_Click);
+
+把this.button1_Click方法绑定到this.button1.Click事件。
+
+下面我们研究一下C#事件处理的工作流程，首先系统会在为我们创建一个在后台监听事件的对象(如果是 button1的事件那么监听事件的就是button1)，这个对象用来产生事件，如果有某个用户事件发生则产生对应的应用程序事件，然后执行订阅了事件 的所有方法。
+
+二、简单的自定义事件(1)
+
+using System;
+
+class UserInputMonitor{
+
+public delegate void UserRequest(object sender,EventArgs e);
+
+//定义委托
+
+public event UserRequest OnUserRequest;
+
+//此委托类型类型的事件
+
+public void Run(){
+
+bool finished=false;
+
+do{
+
+if (Console.ReadLine()=="h")
+
+{
+
+OnUserRequest(this,new EventArgs());
+
+}
+
+}
+
+while(!finished);
+
+}
+
+}
+
+public class Client
+
+{
+
+public static void Main()
+
+{
+
+UserInputMonitor monitor=new UserInputMonitor();
+
+new Client(monitor);
+
+monitor.Run();
+
+}
+
+private void ShowMessage(object sender,EventArgs e){
+
+Console.WriteLine("HaHa!!");
+
+}
+
+Client(UserInputMonitor m){
+
+m.OnUserRequest+=new UserInputMonitor.UserRequest(this.ShowMessage);
+
+//m.OnUserRequest+=new m.UserRequest(this.ShowMessage);
+
+//注意这种写法是错误的，因为委托是静态的
+
+}
+
+}
+
+三、进一步研究C#中的预定义事件处理机制
+
+可能大家发现在C#中有些事件和前面的似乎不太一样。例如
+
+private void textBox1_KeyPress(object sender, System.Windows.Forms.KeyPressEventArgs e){}
+
+this.textBox1.KeyPress+=newSystem.Windows.Forms.KeyPressEventHandler(this.textBox1_KeyPress);
+
+这里使用了KeyPressEventArgs而不是EventArgs作为参数。这里使用了KeyEventHandler委托，而不是EventHandler委托。
+
+KeyPressEventArgs是EventArgs的派生类，而KeyEventHandler的声明如下
+
+public delegate void KeyEventHandler( object sender , KeyEventArgs e );
+
+是参数为KeyEventArgs的委托。那为什么KeyPress事件要这么做呢，我们可以从两个类的构造函数来找答案。
+
+public EventArgs();
+
+public KeyPressEventArgs(char keyChar);
+
+这里的keyChar是什么，是用来传递我们按下了哪个键的，哈。
+
+我在KeyEventArgs中又发现了属性
+
+public char KeyChar { get; }
+
+进一步证明了我的理论。下面我们来做一个类似的例子来帮助理解。
+
+四、简单的自定义事件(2)
+
+拿我们上面做的例子来改。
+
+我们也定义一个EventArgs（类似KeyEventArgs）取名MyEventArgs,定义一个构造函数public MyEventArgs(char keyChar),同样我们也设置相应的属性。代码如下：
+
+using System;
+
+class MyMyEventArgs:EventArgs{
+
+private char keyChar;
+
+public MyMyEventArgs(char keyChar){
+
+this.keychar=keychar;
+
+}
+
+public char KeyChar
+
+{
+
+get{
+
+return keyChar;
+
+}
+
+}
+
+}
+
+因为现在要监听多个键了，我们得改写监听器的类中的do...while部分。改写委托，改写客户端传递的参数。好了最终代码如下，好累。
+
+using System;
+
+class MyEventArgs:EventArgs{
+
+private char keyChar;
+
+public MyEventArgs(char keyChar){
+
+this.keyChar=keyChar;
+
+}
+
+public char KeyChar{
+
+get{
+
+return keyChar;
+
+}
+
+}
+
+}
+
+class UserInputMonitor{
+
+public delegate void UserRequest(object sender,MyEventArgs e);
+
+//定义委托
+
+public event UserRequest OnUserRequest;
+
+//此委托类型类型的事件
+
+public void Run(){
+
+bool finished=false;
+
+do{
+
+string inputString= Console.ReadLine();
+
+if (inputString!="")
+
+OnUserRequest(this,new MyEventArgs(inputString[0]));
+
+}while(!finished);
+
+}
+
+}
+
+public class Client{
+
+public static void Main(){
+
+UserInputMonitor monitor=new UserInputMonitor();
+
+new Client(monitor);
+
+monitor.Run();
+
+}
+
+private void ShowMessage(object sender,MyEventArgs e){
+
+Console.WriteLine("捕捉到：{0}",e.KeyChar);
+
+}
+
+Client(UserInputMonitor m){
+
+m.OnUserRequest+=new UserInputMonitor.UserRequest(this.ShowMessage);
+
+//m.OnUserRequest+=new m.UserRequest(this.ShowMessage);
+
+//注意这种写法是错误的，因为委托是静态的
+
+}
+
+}
+
+原文链接:https://blog.csdn.net/feihu19851111/article/details/7523118
