@@ -1,0 +1,84 @@
+跟随角色的UI实现
+
+详见代码：
+using UnityEngine;
+using UnityEngine.UI;
+
+public class FollowedSlider : MonoBehaviour {
+
+
+    private Slider hpSlider;//血条
+    private RectTransform hpRectTrans;//血条的rectTrans
+
+    private Slider mpSlider;//魔法值
+    private RectTransform mpRectTrans;//魔法的rectTrans
+
+    private Text playerNameTxt;//玩家名称文本
+    private RectTransform nameRect;//
+
+    private Image miniHeadIcon;//玩家小地图头像
+    private RectTransform miniHeadRect;
+
+    #region Inspector
+
+    [SerializeField]
+    private Camera miniMapCam;//小地图相机
+    [SerializeField]
+    private Canvas canves;//画布载体
+    [SerializeField]
+    private Canvas miniMapCanves;//画布载体
+    [SerializeField]
+    private Sprite headIcon;//小地图head图片的资源图片
+    [SerializeField]
+    private Vector2 hpSliderOffset;//与人物的偏移
+    [SerializeField]
+    private Vector2 mpSliderOffset;//与人物的偏移
+    [SerializeField]
+    private Vector2 nameTextOffset;//与人物的偏移
+    // [SerializeField]
+    //private Vector2 miniHeadOffset;//与人物的偏移
+
+    #endregion
+
+    // Use this for initialization
+    void Start()
+    {
+        hpSlider =Instantiate(Resources.Load<Slider>("Prefabs/UI/HpSlider"), new Vector3(), Quaternion.identity);
+        hpSlider.GetComponent<Transform>().SetParent(canves.transform, false);
+        hpSlider.interactable = false;
+        hpRectTrans = hpSlider.GetComponent<RectTransform>();
+
+
+        mpSlider = Instantiate(Resources.Load<Slider>("Prefabs/UI/MpSlider"), new Vector3(), Quaternion.identity);
+        mpSlider.GetComponent<Transform>().SetParent(canves.transform, false);
+        mpSlider.interactable = false;
+        mpRectTrans = mpSlider.GetComponent<RectTransform>();
+
+        miniHeadIcon = Instantiate(Resources.Load<Image>("Prefabs/UI/MiniHeadIcon"), new Vector3(), Quaternion.identity);
+        miniHeadIcon.sprite = headIcon;
+        miniHeadIcon.GetComponent<Transform>().SetParent(miniMapCanves.transform, false);
+        miniHeadRect = miniHeadIcon.GetComponent<RectTransform>();
+    }
+
+    // Update is called once per frame
+    void Update () {
+
+        //将角色位置转化为屏幕位置
+        //以下是需要在MainCamera渲染的UI
+       Vector2 pos = RectTransformUtility.WorldToScreenPoint(Camera.main, this.transform.position);
+        //刷新血条在屏幕中的位置
+       hpRectTrans.position = pos + hpSliderOffset;
+        //刷新血条在屏幕中的位置
+        mpRectTrans.position = pos + hpSliderOffset + new Vector2(0, -20);
+
+
+        //以下是需要在miniMapCam渲染的UI
+        Vector2 miniPos = RectTransformUtility.WorldToScreenPoint(miniMapCam, this.transform.position);
+        //这里需要减去相机目标render texture的长和宽的一半。具体原因不明，可能是基于相机的Canavas UI,Camara坐标原点是Canavas中心
+        miniHeadRect.localPosition = miniPos+ new Vector2(-miniMapCam.targetTexture.width / 2,-miniMapCam.targetTexture.height/ 2);
+    }
+}
+
+将此脚本挂到需要跟随的角色上.
+
+此为自写。
