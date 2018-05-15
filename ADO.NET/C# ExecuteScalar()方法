@@ -1,0 +1,42 @@
+C# ExecuteScalar()方法
+
+ExecuteScalar方法返回的类型是object类型，这个方法返回sql语句执行后的第一行第一列的值，由于不知到sql语句到底是什么样的结构（有可能是int，有可能是char等等），所以ExecuteScalar方法返回一个最基本的类型object，这个类型是所有类型的基类，换句话说：可以转换为任意类型。
+
+ExecuteScalar()方法的作用是：
+执行查询，并返回查询所返回的结果集中第一行的第一列。所有其他的列和行将被忽略。
+
+1、返回的是一个object类型，也就是说是所有数据类型的基类，可根据select所得的第一列的数据类型转换为对应的数据类型
+例：
+string strConn = "Data Source=(local);Initial Catalog=paperManage;Integrated Security=True";
+SQLConnection objConn = new SQLconnection(strConn);
+SQLCommand objCMD = new SQLCommand(strSQL,objConn);
+object objResult = objCMD.ExecuteScalar() //或者 string result = objCMD.ExecuteScalar().toString();
+
+2、当select语句无记录返回时，ExecuteScalar()返回NULL值，无法再将null值赋给任何对象或者变量，否则出现异常：System.NullReferenceException:  未将对象引用设置到对象的实例
+例：
+若select查询无返回记录，以下代码则会抛出异常：
+        try
+        {
+          string result = objCMD.ExecuteScalar().toString();
+        }
+        catch(SQLException ee)
+        {
+          MessageBox.show(ee.toString());
+        }
+解决方法是先判断ExecuteScalar()是否为null,再进行相应的处理。
+例：
+        if (objCMD.ExecuteScalar() == null)
+        {
+               //为空时的操作
+        }
+        else
+        {
+               result = objCMD.ExecuteScalar().ToString().Trim();
+        }
+
+使用 ExecuteScalar（） 方法从数据库中检索单个值（例如一个聚合值）。
+典型的 ExecuteScalar（） 查询可以采用类似于下面的 C# 示例的格式：
+cmd.CommandText = "SELECT COUNT(*) FROM dbo.region";
+Int32 count = (Int32) cmd.ExecuteScalar();
+
+原文链接:https://blog.csdn.net/chenjinglong/article/details/12233107

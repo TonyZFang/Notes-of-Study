@@ -1,0 +1,1 @@
+System.TypeInitializationException:““XXX.XX.XXXX”的类型初始值设定项引发异常。”.....InvalidCastException: 指定的转换无效。 ------遇到这个异常是因为当时我用ADO.Net的SqlDataReader从数据库读取SQLServer数据时，将读取到的数据类型为smallint的字段强制转化为int类型所致。由于当时用对象初始化器将读取自数据库的值强制转换类型给对象赋值，且程序层次比较复杂，无法断点单步调试，所以废了很大事才找到bug原因。最后是通过注释代码块并逐句注释对象初始化器里的语句找到了原因，通过将数据库的smallint强制转换为shot(而不是导致bug的int)类型解决。
